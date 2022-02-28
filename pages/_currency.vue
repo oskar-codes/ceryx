@@ -139,6 +139,7 @@ div.stats {
 
 import Chart from 'chart.js/auto';
 import { Tooltip } from 'chart.js';
+import { Layer, Network } from 'synaptic';
 
 export default {
   computed: {
@@ -150,6 +151,9 @@ export default {
     },
     formattedPrice() {
       return Number(this.price || this.metaData.latest).toFixed(4);
+    },
+    data() {
+      return [...this.priceData[`priceDataFor${this.chartScale}`].quotes].reverse();
     }
   },
   data() {
@@ -157,6 +161,10 @@ export default {
       price: null,
       loading: null,
       chart: null,
+      predictedData: [/* {
+        timestamp: new Date(new Date().getTime() + 86400000).getTime(),
+        price: 100000
+      } */],
       chartScale: 'All'
     }
   },
@@ -165,7 +173,7 @@ export default {
       this.updateChart();
     }
   },
-  async asyncData({ params, redirect, app }) {
+  async asyncData({ params, redirect }) {
     if (process.server) {
       const url = 'https://www.coinbase.com/graphql/query?operationName=useGetPricesForAssetPageQuery&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2259282a0565bfbdc0477f69ad3ae4b687c93d75c808445386bfbfa70be7b4a976%22%7D%7D&variables=%7B%22skip%22%3Afalse%2C%22uuid%22%3A%22' + params.currency + '%22%2C%22currency%22%3A%22USD%22%7D';
       const response = await fetch(url, { mode: 'no-cors' });
@@ -212,11 +220,23 @@ export default {
         this.price = data.USD;
       }
     }, 1e4);
-    if (this.loading) this.loading.close();
 
-    this.updateChart();
+    this.$nextTick(() => {
+      this.makePrediction();
+      this.updateChart();
+      
+      if (this.loading) this.loading.close();
+    })
+    // console.log(this.toBinaryArray(Math.floor(new Date('2013-08-09T00:00:00Z').getTime() / 1000)))
   },
   methods: {
+    formatTimestamp(time) {
+        if (this.chartScale === 'Day' ||
+            this.chartScale === 'Hour') {
+              return new Date(time).toLocaleString();
+            }
+        return new Date(time).toLocaleDateString()
+    },
     updateChart() {
 
       Tooltip.positioners.customPosition = function(elements, eventPosition) {
@@ -228,22 +248,16 @@ export default {
       }
 
       const ctx = this.$refs.chart.getContext('2d');
-      const data = [...this.priceData[`priceDataFor${this.chartScale}`].quotes].reverse();
+      const data = this.data;
       
       if (!this.chart) {
         this.chart = new Chart(ctx, {
           type: 'line',
           data: {
-            labels: data.map(e => {
-              if (this.chartScale === 'Day' ||
-                  this.chartScale === 'Hour') {
-                    return new Date(e.timestamp).toLocaleString();
-                  }
-              return new Date(e.timestamp).toLocaleDateString()
-            }),
+            labels: [...data, ...this.predictedData].map(e => this.formatTimestamp(e.timestamp)),
             datasets: [{
               label: this.metaData.name,
-              data: data.map(e => Number(e.price)),
+              data: [...data, ...this.predictedData].map(e => Number(e.price)),
               pointBackgroundColor: 'rgba(0,0,0,0)',
               pointBorderWidth: 0,
               borderColor: this.metaData.color,
@@ -274,6 +288,53 @@ export default {
         this.chart.data.datasets[0].data = data.map(e => Number(e.price));
         this.chart.update();
       }
+    },
+    makePrediction() {
+      const inputLayer = new Layer(20);
+      const hiddenLayer = new Layer(5);
+      const outputLayer = new Layer(20);
+
+      inputLayer.project(hiddenLayer);
+      hiddenLayer.project(outputLayer);
+
+      const network = new Network({
+        input: inputLayer,
+        hidden: [hiddenLayer],
+        output: outputLayer
+      });
+
+      const learningRate = .1;
+      for (let i = 0; i < 2e4; i++) {
+        for (const dataPoint of this.data) {
+          const inputArray = this.toBinaryArray(Math.floor(new Date(dataPoint.timestamp).getTime() / 1000));
+          const outputArray = this.toBinaryArray(Math.floor(Number(dataPoint.price)));
+          
+          network.activate(inputArray);
+          network.propagate(learningRate, outputArray);
+        }
+      }
+
+      const predictedData = [];
+      for (let i = 0; i < 30; i++) {
+        const now = new Date();
+        const day = new Date(now.getTime() + i * 86400000);
+        console.log(day);
+        const input = this.toBinaryArray(Math.floor(new Date(day.getTime()).getTime() / 1000));
+        predictedData.push(
+          {
+            price: parseInt(
+              network.activate(input)
+            .map(Math.round).join(''),2),
+            timestamp: day
+          }
+        );
+      }
+      this.predictedData = predictedData;
+    },
+    toBinaryArray(n) {
+      const arr = n.toString(2).padStart(20, '0').split('').map(Number);
+      arr.length = 20;
+      return arr;
     }
   }
 }
