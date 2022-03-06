@@ -4,23 +4,25 @@
 
       <template #thead>
         <vs-tr>
-          <vs-th></vs-th>
-          <vs-th>Name</vs-th>
+          <vs-th>Currency</vs-th>
           <vs-th>Price</vs-th>
           <vs-th>Change</vs-th>
         </vs-tr>
       </template>
       <template #tbody>
-        <vs-tr v-for="currency, i in filteredCurrencies" :key="i" @click="navigateTo(currency);">
-          
-          <vs-td>
-             <vs-avatar circle size="30">
-              <img :src="currency.image_url">
-            </vs-avatar>
-          </vs-td>
+        <vs-tr v-for="currency, i in $vs.getSearch(currencies, $props.filter)" :key="i" @click="navigateTo(currency);">
 
           <vs-td>
-            {{ currency.name }} <span class="grey">[{{ currency.symbol }}]</span>
+            <vs-row type="flex" align="center">
+              <vs-col style="width: 30px;" type="flex" align="center">
+                <img :src="currency.image_url">
+              </vs-col>
+              <vs-col style="width: fit-content" type="flex" align="center">
+                <span style="margin-left: 10px;">
+                  {{ currency.name }} <span class="grey">[{{ currency.symbol }}]</span>
+                </span>
+              </vs-col>
+            </vs-row>
           </vs-td>
           
           <vs-td>USD {{ Number(currency.latest).toFixed(2) }}</vs-td>
@@ -30,7 +32,12 @@
         </vs-tr>
       </template>
       <template #notFound>
-        No cryptocurrency match the entered query.
+        <span v-if="!loading">
+          No cryptocurrency match the entered query.
+        </span>
+        <span v-else>
+
+        </span>
       </template>
 
     </vs-table>
@@ -38,14 +45,12 @@
 </template>
 
 <style scoped>
-  table tbody tr td:first-child {
-    max-width: 30px;
+  table {
+    white-space: nowrap;
   }
 
-  table > tbody.vs-table_not-found > tr > td > button {
-    width: 100px;
-    height: 30px;
-    /* background: rgb(var(--vs-background)); */
+  img {
+    max-width: 30px;
   }
 
   tr {
@@ -71,6 +76,7 @@ export default {
         });
       } else if (this.loading) {
         this.loading.close();
+        this.loading = null;
       }
     }
   },

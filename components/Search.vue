@@ -4,7 +4,8 @@
         <vs-input 
           v-model="query"
           placeholder="Filter"
-          border />
+          border
+          shadow />
     </div>
 
     <div v-if="query !== ''">
@@ -20,6 +21,9 @@ div.center.content-inputs label {
 }
 div.center.content-inputs input {
   width: 100%;
+}
+div.center.content-inputs {
+  margin-bottom: 10px 0;
 }
 </style>
 

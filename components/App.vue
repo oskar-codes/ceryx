@@ -1,7 +1,6 @@
 <template>
   <main>
-    <h1 class="center">CERYX</h1>
-    <p class="center">A.I. powered crypto value predictions.</p>
+    <Header />
     <Search @query="handleQuery($event)" />
     <CurrencyList :filter="query" />
   </main>
